@@ -46,5 +46,9 @@ plot(all_sig)
 
 %Evaluation of increasing the number of DFT points.
 
+%Discussion points: 
+%Are these representations consistent with the a priori information known about the signals?
+%Is the representation window correct?
+
 
 %%% >--------------------------------------------------------------------------------<
