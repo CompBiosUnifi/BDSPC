@@ -43,12 +43,81 @@ plot(all_sig)
 %% L2 - DFT application
 
 %Spectrum visualization on segments of the extracted signal.
+% FFT on a portion of the signal
+x_signal=all_sig(15900:15900+256*3+1);
+Fs = 256;            % Sampling frequency                    
+T = 1/Fs;             % Sampling period       
+L = length(x_signal);             % Length of signal
+% t = (0:L-1)*T;        % Time vector
+Y = fft(x_signal);
+P2 = abs(Y); % non-normalized coefficients for aperiodic signals (/L)  % non-normalized coefficients for aperiodic signals (the DFT summation should be considered)
+P1 = P2(1:L/2+1);
+P1(2:end-1) = 2*P1(2:end-1); %(correction required when excluding the negative-frequency components)
+
+figure(2)
+f = Fs*(0:(L/2))/L;
+plot(f,P1) 
+% hold on
+title('Single-Sided Amplitude Spectrum of xsignal')
+xlabel('f (Hz)')
+ylabel('Amp xsignal')
+axis tight
 
 %Evaluation of increasing the number of DFT points.
+n=length(x_signal)*10; 
+% n = 2^nextpow2(length(x_signal)); % for efficient FFT rather than DFT.
+
+Fs = 256;            % Sampling frequency                    
+% T = 1/Fs;             % Sampling period       
+L = length(x_signal);             % Length of signal
+% t = (0:L-1)*T;        % Time vector
+Y = fft(x_signal,n);
+
+P2 = abs(Y); % non-normalized coefficients for aperiodic signals
+P1 = P2(1:n/2+1);
+P1(2:end-1) = 2*P1(2:end-1);
+f = Fs*(0:(n/2))/n;
+figure(6)
+plot(f,P1) 
+% hold on
+title('Single-Sided Amplitude Spectrum of xsignal - lower number of FFT points')
+xlabel('f (Hz)')
+ylabel('Amp xsignal')
+axis tight
 
 %Discussion points: 
 %Are these representations consistent with the a priori information known about the signals?
 %Is the representation window correct?
 
-
 %%% >--------------------------------------------------------------------------------<
+%%L3 - Extraction of the spectrum from the entire signal, its segments, and visualization
+% Identify the properties of the sampled signal
+fs = 256;            % Sampling frequency                    
+T = 1/fs;             % Sampling period       
+N = length(all_sig);  % Length of signal
+t = (0:N-1)*T;        % Time vector
+
+[pxx_welch,f] = pwelch(all_sig,N/100,[],512,fs,'psd');
+pwelch(all_sig,N/2,100,512,fs,'psd');
+
+% Hypothesis that different phases carry non-stationary frequency information
+
+% Isolation of these phases
+N1_samp=all_sig(240*fs:240*fs+10*fs-1);
+N=length(N1_samp);
+figure(20)
+pwelch(N1_samp,N/10,[],512,fs,'psd');
+hold on
+
+N3_samp=all_sig(3360*fs:3360*fs+10*fs-1);
+N=length(N3_samp);
+pwelch(N3_samp,N/10,[],512,fs,'psd');
+
+R_samp=all_sig(4610*fs:4610*fs+10*fs-1);
+N=length(R_samp);
+pwelch(R_samp,N/10,[],512,fs,'psd');
+
+hold off
+
+% Discussion point: does the window remain consistent for these processes?
+
