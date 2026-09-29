@@ -121,3 +121,32 @@ hold off
 
 % Discussion point: does the window remain consistent for these processes?
 
+%%% >--------------------------------------------------------------------------------<
+%% L4 - ECG/HRV Signal Analysis Part A
+
+% display the extracted ECG signal
+figure(2)
+plot(all_sig)
+fs=256;
+
+%all_sig(1)=all_sig(1)+10000000;
+
+% implement R-peak detection % Pan-Tompkins used by user-function from mathworks repository
+[qrs_amp_raw,qrs_i_raw,delay]=pan_tompkin(all_sig,fs,1);
+RR=diff(qrs_i_raw/fs); % obtain the signal for the tachogram in [s]
+RR_round = round(RR*fs)/fs;
+Ann = cumsum(RR_round);
+figure(12)
+plot(Ann,RR_round)
+ylabel('RR (s)')
+xlabel('Time (s)')
+title('Tachogram')
+
+% turn this operation (detection and visualization) into a function
+%TO DO AT HOME
+
+% Discussion point: tachogram and its alterations in the observed signal
+
+%%% >--------------------------------------------------------------------------------<
+
+
