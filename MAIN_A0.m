@@ -148,5 +148,155 @@ title('Tachogram')
 % Discussion point: tachogram and its alterations in the observed signal
 
 %%% >--------------------------------------------------------------------------------<
+L5 – ECG/HRV Signal Analysis – Part B
 
+%subwindowing the entire signal into windows of N samples with a defined overlap
+% Define window size and overlap for subwindowing
+fs=256;
+windowSize = 60*fs; % Number of samples in each window
+overlap = windowSize/2;    % Number of overlapping samples
+
+% Create overlapping windows for the signal
+numWindows = floor((length(all_sig) - windowSize) / overlap) + 1; %<<-- valid only for 50% overlap
+windows_ecg = cell(2, numWindows);
+
+%extract the windows from the signal and store them in a cell array
+for j = 1:numWindows
+    startIdx = (j-1) * overlap + 1;
+    windows_ecg{1, j}= all_sig(startIdx:startIdx + windowSize - 1);
+    windows_ecg{2, j}= [startIdx startIdx + windowSize - 1];
+end
+
+%feature extraction for each segmented window
+for j=1:numWindows
+    curr_wind=windows_ecg{1,j};
+    %PT and RR
+    [qrs_amp_raw,qrs_i_raw,delay]=pan_tompkin(curr_wind,fs,0);
+    RR=diff(qrs_i_raw/fs); %obtain the tachogram signal in [s]
+    RR_round = round(RR*fs)/fs;
+    
+    %Discussion point 1: do all windows provide good R-peak detection?
+    %Discussion point 2: how can possible anomalies be identified? Before
+    %or after feature extraction?
+    
+    %example of feature extraction (rough implementation!) -
+    %Discussion point 3: is this the most efficient method? I need to
+    %keep track of the feature names somewhere
+    feat_all(1,j)=HRV.HR(RR,0);
+    feat_all(2,j)=HRV.RMSSD(RR*1000,0);
+    [pLF,pHF,LFHFratio,VLF,LF,HF,~,~,~,TP] = HRV.fft_val_fun(RR,fs,'linear');
+    feat_all(3,j)=LFHFratio;
+
+end
+
+%HR 
+% hr = HRV.HR(RR,0); %0 is the entire recording
+% %RMSSD
+% rmssd = HRV.RMSSD(RR*1000,0); %conversion to ms 
+% %LF - HF
+% [pLF,pHF,LFHFratio,VLF,LF,HF,~,~,~,TP] = HRV.fft_val_fun(RR,fs,'linear');
+
+%turn this operation (feature extraction) into a function with
+%user-defined parameters.
+
+%Produce a plot summarizing the trend of a series of these metrics as a function of the window.
+%Plot the metrics as a function of the window
+
+figure;
+% windowTime = (0:numWindows-1) * (windowSize/2) / fs;
+
+subplot(3,1,1)
+plot(1:numWindows, feat_all(1,:), '-o', 'LineWidth', 1.2);
+xlabel('Window');
+ylabel('HR [bpm]');
+title('Heart Rate');
+grid on;
+
+subplot(3,1,2)
+plot(1:numWindows, feat_all(2,:), '-o', 'LineWidth', 1.2);
+xlabel('Window');
+ylabel('RMSSD [ms]');
+title('RMSSD');
+grid on;
+
+subplot(3,1,3)
+plot(1:numWindows, feat_all(3,:), '-o', 'LineWidth', 1.2);
+xlabel('Window');
+ylabel('LF/HF');
+title('LF/HF ratio');
+grid on;
+
+%Consider the window size and its consistency in HRV metric extraction.
+%Discussion point: window size, extractable features, overlap.
+
+%%% >--------------------------------------------------------------------------------<
+L6 – Characterization of HRV States and Events – Part C
+
+% -- > code for labeling periods from the .txt file
+% -- > sample-wise assignment of labels from the .txt file
+
+% e.g. given the start and end sample, if it falls within this range <--
+% this information also needs to be returned by the segmentation function.
+
+sleep_label = import_sleep_info('SN001_sleepscoring.txt');
+
+%how to handle conflicts, i.e., transitions?
+
+%e.g. 1 grouping
+dict={"Sleep stage W", "Sleep stage N1", "Sleep stage N2", "Sleep stage N3", ...
+    "Sleep stage R","Extra_label";...
+    0 1 2 3 4 9};
+annotat_sleep=sleep_label.Annotation;
+onset_sleep=sleep_label.RecordingOnset;
+
+for i=1:size(windows_ecg,2)
+    current_samples=windows_ecg{2,i}./fs; %<<-- in seconds
+    %find the corresponding label 
+    idx_good=onset_sleep >= current_samples(1,1) & onset_sleep <= current_samples(1,2);
+    %candidate/s?
+    cand_label=annotat_sleep(idx_good);
+    if size(cand_label,1) == 1
+        the_label=strcmp([dict{1,:}],cand_label);
+        if ~isempty(the_label)
+            wind_label_ecg(1,i)=dict{2,the_label};
+        else
+             wind_label_ecg(1,i)=dict{2,end};
+        end
+
+    else % a "decision rule" is needed — "majority"?
+        %define the majority rule on cand_label to find the winner
+        %here
+        % Apply majority voting to determine the final label
+        for j=1:size(dict,2)
+            count_label(j)=sum(contains(cand_label,dict{1,j}));
+        end
+              %what if there are ties? --- handle this exception!
+        %e.g. 1A (take only the last observed transition)
+        [~, maxIdx] = max(count_label); % Find the index of the maximum count
+        num_max=sum(count_label == max(count_label));
+
+        if num_max > 1
+            the_label=strcmp([dict{1,:}],cand_label(end,1)); %<<< an exception may occur here!
+            %i.e., the last label may not correspond to either of
+            %the two majority cases!
+              wind_label_ecg(1,i)=dict{2,the_label};
+        else
+             wind_label_ecg(1,i) = dict{2,maxIdx};
+        end
+  
+    end
+end
+
+histogram(wind_label_ecg(end,:));
+xlabel("wind_label_ecg(end,:)");
+title("wind_label_ecg(end,:)");
+legend("show");
+
+%Discussion point: limitations and fragility of the labeling rules —
+%they have an impact on the system's performance
+
+%Discussion point: how could this information be extended from an
+%offline scenario to an online scenario?
+
+%%% >--------------------------------------------------------------------------------<
 
