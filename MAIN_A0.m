@@ -299,4 +299,32 @@ legend("show");
 %offline scenario to an online scenario?
 
 %%% >--------------------------------------------------------------------------------<
+%% L7 - Descriptive Statistical Analysis – Part A
 
+% Develop a set of descriptive statistical indices for the features
+% extracted from the observed groups (i.e., sleep stages based on HRV)
+% Simplification to two classes (?)
+
+% Calculate descriptive statistics for the extracted features
+meanFeat = mean(feat_all, 2);
+stdFeat = std(feat_all, 0, 2);
+medianFeat = median(feat_all, 2);
+
+% Example: Qualitative assessment using box plots and correlation plots
+% (discussion of the information that can be extracted about the observed groups)
+figure(26)
+[R, PValue] = corrplot(feat_all', VarNames=["HR", "RMSSD", "LF/HF"]);
+
+figure(27)
+boxplot(feat_all(1,:), wind_label_ecg);
+ylabel('HR [bpm]')
+
+% Discussion point: Is this the best representation? What is missing from this choice?
+
+% Normality test
+[H, pValue, W] = swtest(feat_all(1,:), 0.05)
+
+% Discussion point: Are the assumptions/boundary conditions satisfied?
+% The Shapiro-Wilk (SW) test assumes that the observations are independent!
+
+%%% >--------------------------------------------------------------------------------<
