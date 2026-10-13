@@ -328,3 +328,32 @@ ylabel('HR [bpm]')
 % The Shapiro-Wilk (SW) test assumes that the observations are independent!
 
 %%% >--------------------------------------------------------------------------------<
+%% L8 - Inferential Statistical Analysis, Part B
+
+% Development of inferential tests to evaluate null hypotheses for a
+% selected HRV metric:
+    % No difference between the Wake phase and a selected phase
+    % No difference between the phases (group-based test)
+
+G1=feat_all(1,wind_label_ecg==0);
+G2=feat_all(1,wind_label_ecg==3);
+
+[h,p,ci,stats] = ttest2(G1,G2)
+[p_group,tbl_group,stats_gropu] = anova1(feat_all(1,:),wind_label_ecg)
+[c,m,h,gnames] = multcompare(stats_gropu);
+
+% Discussion point: What could be the intrinsic error of
+% applying the tests in this way?
+
+% Development of an inferential test for the null hypothesis:
+% No correlation between two HRV metrics extracted from the same phase.
+
+G1_bis=feat_all(2,wind_label_ecg==0);
+[rho,pval] = corr(G1',G1_bis')
+
+% Discussion point: As n --> infinity, what happens to rho?
+
+% Discussion point: Which type of representation should be used?
+% Discussion point: Is the correlation test appropriate for this
+% study design?
+%%% >--------------------------------------------------------------------------------<
