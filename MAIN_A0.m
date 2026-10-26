@@ -356,4 +356,198 @@ G1_bis=feat_all(2,wind_label_ecg==0);
 % Discussion point: Which type of representation should be used?
 % Discussion point: Is the correlation test appropriate for this
 % study design?
+
 %%% >--------------------------------------------------------------------------------<
+%% L9 - EEG Analysis Part 1: Single-Channel and Time-Frequency (TF) Analysis
+fs=256;
+idx_cl=1:4;
+all_sig_eeg=[];
+for i=1:5000 %size(edfData,1)
+    all_sig_eeg=[all_sig_eeg; edfData.(idx_cl(1)){i,:} edfData.(idx_cl(2)){i,:} edfData.(idx_cl(3)){i,:} edfData.(idx_cl(4)){i,:}]; % Brute-force method (can be optimized)!
+end
+
+% Windowing
+% Subwindow the entire signal into windows of N samples with a defined overlap
+% Define window size and overlap for subwindowing
+windowSize = 4*fs; % Number of samples in each window
+overlap = windowSize/2; % Number of overlapping samples
+
+% Create overlapping windows for the signal
+numWindows = floor((length(all_sig_eeg) - windowSize) / overlap) + 1; % <<-- Valid only for 50% overlap
+windows_eeg = cell(2, numWindows);
+
+% Extract the windows from the signal and store them in a cell array
+for j = 1:numWindows
+    startIdx = (j-1) * overlap + 1;
+    windows_eeg{1, j}= all_sig_eeg(startIdx:startIdx + windowSize - 1,:);
+    windows_eeg{2, j}= [startIdx startIdx + windowSize - 1];
+end
+
+sleep_label = import_sleep_info('SN001_sleepscoring.txt');
+
+% How should conflicts, i.e., transitions between sleep stages, be handled?
+
+% Example 1: Grouping
+dict={"Sleep stage W", "Sleep stage N1", "Sleep stage N2", "Sleep stage N3", ...
+    "Sleep stage R","Extra_label";...
+    0 1 2 3 4 9};
+
+annotat_sleep=sleep_label.Annotation;
+onset_sleep=sleep_label.RecordingOnset;
+
+dur_sleep=sleep_label.Duration;
+on_sleep_eeg=[onset_sleep onset_sleep+dur_sleep];
+
+for i=1:size(windows_eeg,2)
+    current_samples=windows_eeg{2,i}./fs; % <<-- In seconds
+
+    % Find the corresponding label; new approach for windows shorter than the label duration
+    % idx_good=onset_sleep >= current_samples(1,1) & onset_sleep <= current_samples(1,2);
+
+    idx_good_onset = on_sleep_eeg(:,1) <= current_samples(1,1) & on_sleep_eeg(:,2) >= current_samples(1,1);
+    idx_good_offset = on_sleep_eeg(:,1) <= current_samples(1,2) & on_sleep_eeg(:,2) >= current_samples(1,2);
+    idx_good = idx_good_onset | idx_good_offset;
+
+    % Candidate label(s)?
+    cand_label=annotat_sleep(idx_good);
+
+    if size(cand_label,1) == 1
+        the_label=strcmp([dict{1,:}],cand_label);
+        if ~isempty(the_label)
+            wind_label_eeg(1,i)=dict{2,the_label};
+        else
+             wind_label_eeg(1,i)=dict{2,end};
+        end
+
+    else % A decision rule is needed: majority voting?
+        % Define a majority-voting rule to determine the final label
+        % Apply majority voting to determine the final label
+        for j=1:size(dict,2)
+            count_label(j)=sum(contains(cand_label,dict{1,j}));
+        end
+
+        % What if there is a tie? This exception needs to be handled!
+        % Example 1A: Select only the last observed transition
+        [~, maxIdx] = max(count_label); % Find the index of the maximum count
+        num_max=sum(count_label == max(count_label));
+
+        if num_max > 1
+            the_label=strcmp([dict{1,:}],cand_label(end,1)); % <<< An exception may occur here!
+            % In other words, the last label may not correspond to either
+            % of the two tied majority labels.
+            wind_label_eeg(1,i)=dict{2,the_label};
+        else
+             wind_label_eeg(1,i) = dict{2,maxIdx};
+        end
+
+    end
+end
+
+histogram(wind_label_eeg(end,:));
+xlabel("wind_label_eeg(end,:)");
+title("wind_label_eeg(end,:)");
+legend("show");
+
+% Time-frequency feature extraction
+all_feat_eeg=[];
+for k=1:size(windows_eeg,2)
+    curr_wind_eeg=windows_eeg{1,k};
+    for j=1:size(curr_wind_eeg,2)
+        [s,f,t,ps_alpha] = spectrogram(curr_wind_eeg(:,j),[],[],[10:14],fs);
+
+        % Average alpha peak
+        curr_psd_alpha_peak(1,j)=max(mean(ps_alpha,2));
+
+        % Discussion point: What other features could be considered?
+        % Example: Alpha shift
+        % Example: Alpha instability (standard deviation, entropy, etc.)
+        % Example: Theta/alpha ratio
+
+        [s,f,t,ps_theta] = spectrogram(curr_wind_eeg(:,j),[],[],[4:8],fs);
+        curr_ratio_psd_theta_alpha(1,j)=max(mean(ps_theta,2))./max(mean(ps_alpha,2));
+
+        % Example: Total power?
+        [s,f,t,ps_total] = spectrogram(curr_wind_eeg(:,j),[],[],[],fs);
+        curr_TP(1,j)=log(sum(sum(ps_total)));
+    end
+    all_feat_eeg=[all_feat_eeg; curr_psd_alpha_peak curr_ratio_psd_theta_alpha curr_TP];
+end
+
+feat_all=all_feat_eeg(:,1:4)';
+% feat_all=all_feat_eeg(:,5:8)';
+% feat_all=all_feat_eeg(:,9:12)';
+
+metric_names = {'feat F4-M1', 'feat C4-M1', 'feat O2-M1', 'feat C3-M2'};
+y_labels = {'AU', 'AU', 'AU','AU'};
+metric_idx = [1 2 3 4];
+chat_extra_2_window
+
+% Topographic plot visualization (note: modified function)
+figure(999)
+plot_topography({'F4','C4','O2','C3'}, all_feat_eeg(20,1:4));  % <<-- Internal modification due to the minimum number of points required
+
+figure(1000)
+plot_topography({'F4','C4','O2','C3'}, all_feat_eeg(2198,1:4));  % <<-- Internal modification due to the minimum number of points required
+
+%   Script information plot_topography:                                                   %
+%       - Version:      1.4.                                              %
+%       - Author:       V. Martinez-Cagigal                               %
+%       - Date:         23/11/2020      
+
+%%% >--------------------------------------------------------------------------------<
+% Graph construction by selecting an interaction metric (e.g., MSC in the alpha band)
+C = nchoosek(1:4,2); % <<-- Identify combinations without repetition (if direction is not important)
+
+% (Very) brute-force method
+all_cxy={};
+all_feat_interaction=[];
+for k=1:size(windows_eeg,2) % <<-- For simplicity
+    curr_wind_eeg=windows_eeg{1,k};
+    for r=1:size(curr_wind_eeg,2)
+        for c=1:size(curr_wind_eeg,2)
+            [cxy(r,c)] = mean(mscohere(curr_wind_eeg(:,r),curr_wind_eeg(:,c),[],[],[10:14],fs));
+            % [cxy(r,c)] = mean(mscohere(curr_wind_eeg(:,r),curr_wind_eeg(:,c),[],[],[1:4],fs));
+        end
+    end
+    all_cxy{k,1}=cxy;
+
+    % Discussion point: What can we derive from this matrix?
+    % Mean coherence (excluding the diagonal)
+    cc=triu(cxy,1);
+    mean_cohe=mean(cc(cc~=0));
+
+    % Interaction between individual channels (e.g., left and right)
+    cohe_C3_C4=cxy(2,4);
+    all_feat_interaction=[all_feat_interaction; mean_cohe cohe_C3_C4];
+end
+
+feat_all=all_feat_interaction';
+metric_names = {'feat mean_cohe', 'feat cohe_C3_C4'};
+y_labels = {'AU', 'AU'};
+metric_idx = [1 2];
+chat_extra_2_window
+
+% Graph construction and visualization (two examples using the calculated windows)
+adj_1=all_cxy{1,1};
+adj_2=all_cxy{2,1};
+names = {'F4' 'C4' 'O2' 'C3'};
+
+figure(3000)
+G = graph(adj_1,names,'upper','omitselfloops')
+p = plot(G,'Layout','force','EdgeLabel',G.Edges.Weight);
+layout(p,'force','WeightEffect','direct')
+
+figure(3001)
+G2 = graph(adj_2,names,'upper','omitselfloops')
+p2 = plot(G2,'Layout','force','EdgeLabel',G.Edges.Weight);
+layout(p2,'force','WeightEffect','direct')
+
+% Additional graphical elements
+G.Nodes.NodeColors = degree(G);
+p.NodeCData = G.Nodes.NodeColors;
+colorbar
+%
+G.Edges.LWidths = 7*G.Edges.Weight/max(G.Edges.Weight);
+p.LineWidth = G.Edges.LWidths;
+
+%% 
